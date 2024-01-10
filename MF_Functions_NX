@@ -1,0 +1,114 @@
+# imports
+import networkx as nx
+import matplotlib.pyplot as plt
+from pyvis.network import Network
+
+# necessary function
+def hierarchy_pos(G, root=None, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5):
+
+    '''
+    From Joel's answer at https://stackoverflow.com/a/29597209/2966723.  
+    Licensed under Creative Commons Attribution-Share Alike 
+    
+    If the graph is a tree this will return the positions to plot this in a 
+    hierarchical layout.
+    
+    G: the graph (must be a tree)
+    
+    root: the root node of current branch 
+    - if the tree is directed and this is not given, 
+      the root will be found and used
+    - if the tree is directed and this is given, then 
+      the positions will be just for the descendants of this node.
+    - if the tree is undirected and not given, 
+      then a random choice will be used.
+    
+    width: horizontal space allocated for this branch - avoids overlap with other branches
+    
+    vert_gap: gap between levels of hierarchy
+    
+    vert_loc: vertical location of root
+    
+    xcenter: horizontal location of root
+    '''
+    if not nx.is_tree(G):
+        raise TypeError('cannot use hierarchy_pos on a graph that is not a tree')
+
+    if root is None:
+        if isinstance(G, nx.DiGraph):
+            root = next(iter(nx.topological_sort(G)))  #allows back compatibility with nx version 1.11
+        else:
+            root = random.choice(list(G.nodes))
+
+    def _hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5, pos = None, parent = None):
+        '''
+        see hierarchy_pos docstring for most arguments
+
+        pos: a dict saying where all nodes go if they have been assigned
+        parent: parent of this branch. - only affects it if non-directed
+
+        '''
+    
+        if pos is None:
+            pos = {root:(xcenter,vert_loc)}
+        else:
+            pos[root] = (xcenter, vert_loc)
+        children = list(G.neighbors(root))
+        if not isinstance(G, nx.DiGraph) and parent is not None:
+            children.remove(parent)  
+        if len(children)!=0:
+            dx = width/len(children) 
+            nextx = xcenter - width/2 - dx/2
+            for child in children:
+                nextx += dx
+                pos = _hierarchy_pos(G,child, width = dx, vert_gap = vert_gap, 
+                                    vert_loc = vert_loc-vert_gap, xcenter=nextx,
+                                    pos=pos, parent = root)
+        return pos
+
+            
+    return _hierarchy_pos(G, root, width, vert_gap, vert_loc, xcenter)
+
+# definitions
+limit = 100
+
+# variables
+F = []
+F.append(1)
+M = []
+M.append(0)
+
+F_graph = nx.DiGraph()
+M_graph = nx.DiGraph()
+Helix = nx.DiGraph()
+
+# logic
+for i in range(1, limit):
+    M.append(i-F[M[i-1]])
+    F.append(i-M[F[i-1]])
+
+for i in range(1, limit):
+    M_graph.add_node(i, label=f"{i}")
+    M_graph.add_edge(M[i], i)
+    F_graph.add_node(i, label=f"{i}")
+    F_graph.add_edge(F[i], i)
+    Helix.add_node(i, label=f"{i}")
+    Helix.add_edge(F[i], i)
+    Helix.add_edge(M[i], i)
+
+# output
+# subax1 = plt.subplot(121)
+F_plot = plt.figure(1)
+F_graph.remove_node(1)
+F_graph.remove_edge(2,2)
+nx.draw(F_graph, pos=hierarchy_pos(F_graph,2), with_labels=True, font_weight='bold')
+
+# subax2 = plt.subplot(122)
+M_plot = plt.figure(2)
+nx.draw(M_graph, pos=hierarchy_pos(M_graph, 0), with_labels=True, font_weight='bold')
+
+# subax3 = plt.plot()
+# Helix.remove_node(1)
+# Helix.remove_edge(2,2)
+# nx.draw(Helix, pos=hierarchy_pos(Helix, 2), with_labels=True, font_weight='bold')
+plt.show()
